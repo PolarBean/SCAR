@@ -293,6 +293,7 @@ class App:
                         self.rewind_space_var = False
                     if self.play == True:
                        self.check_presses()      
+                       ###This is slow, move time_spent inside callback_keypress and only run if button is depressed
                        time_spent=list(zip(self.counts.keys(),[round(i/self.FPS,2) for i in list(self.counts.values())]))
                        total_time=(self.frame_count)/self.FPS
                     if self.frame_count%self.capped_FR==0:

@@ -7,6 +7,7 @@ import time
 import keyboard  # using module keyboard
 import pandas as pd
 import numpy as np
+import os
 import threading
 from collections import Counter
 from ttkthemes import ThemedTk
@@ -21,13 +22,14 @@ class App:
          self.behaviour=[]
          self.play=False
          self.keys = []
+         self.held_down=False
          self.time_spent = [0]
-         
+
          self.save_status=True
          self.frame_count=0
          self.current_behaviour="Nothing"
 
-         self.dict={"frame":[], "behaviour":[],"hit":[]}
+         self.dict={"frame":[0], "behaviour":['Nothing'],"time":[0],"hit":[None]}
          self.rewind_space_var = False
 
          ##list_o_keys is a list containing the callback function that monitors for a key press
@@ -80,10 +82,10 @@ class App:
          self.pausebutt=ttk.Button(window, text="Pause",image = pause_icon, compound=tkinter.LEFT, width=10, command=self.pausevid)
          self.FasterButt=ttk.Button(window, text="Faster", width=10, command=self.faster)
          self.Save_Butt=ttk.Button(window, text="Save",image = save_icon, compound=tkinter.LEFT,  width=10, command=self.Save_DataFrame)
-         self.rewindbutt=ttk.Button(window, compound=tkinter.LEFT,image = rewind_icon,text="1s", width=10, command=self.rewind)
-         self.rewindbuttmin=ttk.Button(window, compound=tkinter.LEFT,image = rewind_icon,text="1m", width=10, command=self.rewind_min)
-         self.fastfwdbutt=ttk.Button(window, compound=tkinter.LEFT,image = fwd_icon,text="5s", width=10, command=self.fast_fwd)
-         self.fastfwdbuttmin=ttk.Button(window, compound=tkinter.LEFT,image = fwd_icon,text="1m", width=10, command=self.fast_fwd_min)
+         self.rewindbutt=ttk.Button(window, compound=tkinter.LEFT,image = rewind_icon,text="1s", width=10, command=lambda: self.rewind(1))
+         self.rewindbuttmin=ttk.Button(window, compound=tkinter.LEFT,image = rewind_icon,text="1m", width=10, command=lambda: self.rewind(60))
+         self.fastfwdbutt=ttk.Button(window, compound=tkinter.LEFT,image = fwd_icon,text="5s", width=10, command=lambda: self.fast_fwd(1))
+         self.fastfwdbuttmin=ttk.Button(window, compound=tkinter.LEFT,image = fwd_icon,text="1m", width=10, command=lambda: self.fast_fwd(60))
          ###Place them on a grid
          self.add_behave.grid(column=0,row=4)
          self.OpenVidButton.grid(column=1,row=4)
@@ -113,7 +115,7 @@ class App:
                     self.play=False
                     self.save_status=False
                     self.frame_count=0
-                    self.dict={"frame":[], "behaviour":[],"hit":[]}
+                    self.counts = dict({"behaviour": [], "value": [], "frequency": []})
                     ##inter-frame interval in milliseconds
                     self.delay = int(1000 / self.FPS)
                     
@@ -171,12 +173,42 @@ class App:
 
 
      def callback_keypress(self,t):
-        self.current_behaviour=self.keys_behaviour_dict[t.name]
-        self.time_spent=list(zip(self.counts.keys(),[round(i/self.FPS,2) for i in list(self.counts.values())]))
+        if self.held_down==False:
+            self.dict["time"].append(self.frame_count-self.dict["frame"][-1])
+
+            self.dict["behaviour"].append(self.current_behaviour)   
+            self.current_behaviour=self.keys_behaviour_dict[t.name]
+
+            self.dict["frame"].append(self.frame_count) 
+            self.held_down=True
 
 
-     def release(self,t):                   
+     def count_behaviours(self):
+        counts = dict({"behaviour": [], "value": [], "frequency": []})
+        for behaviour in set(self.dict["behaviour"]):
+            if behaviour!='Nothing':
+                behaviour_time = np.sum([i for i, j in zip(self.dict["time"], self.dict["behaviour"]) if j==behaviour])
+                behaviour_frequency = np.sum([i==behaviour for i in self.dict["behaviour"]])
+                counts["behaviour"].append(behaviour)
+                counts["value"].append(behaviour_time)
+                counts["frequency"].append(behaviour_frequency)
+        
+        return counts
+
+
+     def release(self,t):     
+                self.dict["behaviour"].append(self.current_behaviour)  
+                self.dict["time"].append(self.frame_count-self.dict["frame"][-1])
+
+                self.dict["frame"].append(self.frame_count) 
+                
+                print(self.dict["time"][-1])
                 self.current_behaviour="Nothing"
+                self.counts = self.count_behaviours()
+                self.time_spent=list(zip(self.counts["behaviour"],[round(i/self.FPS,2) for i in list(self.counts["value"])]))
+
+                self.held_down = False
+
      def askname(self):
         self.play=False
         self.behaviour_temp = (tkinter.simpledialog.askstring("select behaviour","behaviour name:"))
@@ -195,36 +227,50 @@ class App:
 
      def catchup(self):
         self.frame_count = int(self.frame_count)
-        self.dict['frame'][-1] = int(self.dict['frame'][-1])
-        frames    =   list(range(self.dict['frame'][-1]+1,self.frame_count,1))
-        behaviour =   ["Nothing"]*(  (self.frame_count)  -  (self.dict['frame'][-1]+1) ) 
-        hit       =   ([None]*((self.frame_count)-(self.dict['frame'][-1]+1)))
-        self.dict["frame"].extend(frames)
-        self.dict["behaviour"].extend(behaviour)
-        self.dict['hit'].extend(hit)
+        # self.dict['frame'][-1] = int(self.dict['frame'][-1])
+        # frames    =   list(range(self.dict['frame'][-1]+1,self.frame_count,1))
+        # behaviour =   ["Nothing"]*(  (self.frame_count)  -  (self.dict['frame'][-1]+1) ) 
+        # hit       =   ([None]*((self.frame_count)-(self.dict['frame'][-1]+1)))
+        # self.dict["frame"].extend(frames)
+        # self.dict["behaviour"].extend(behaviour)
+        # self.dict['hit'].extend(hit)
 
      def rewind_dict(self, time):
         for key in self.dict:
                 self.dict[key]=self.dict[key][:-time]
 
+     def create_full_dataframe(self):
+        self.dict["behaviour"].append(self.current_behaviour)  
+        self.dict["time"].append(self.frame_count-self.dict["frame"][-1])
+        self.dict["frame"].append(self.frame_count) 
+        frames = np.arange(1, self.frame_count+1, 1)
+        full_behaviours=[]
+        for behaviour, frame in zip(self.dict["behaviour"], self.dict["time"]):
+            full_behaviours.extend([behaviour]*frame)
+        
+        print(("this",(self.frame_count),len(full_behaviours)))
+        df = pd.DataFrame({'frame':frames, 'behaviour':full_behaviours})
+        df["hit"] = (df["behaviour"].shift(1, fill_value=df["behaviour"].head(1)) != df["behaviour"]) 
+        df["hit"]=df["hit"]*df["behaviour"]
+        df["values"] = pd.Series(list(self.counts["value"]))
+        df["freq"] = pd.Series(list(self.counts["frequency"]))
+        return df
 
 
      def Save_DataFrame(self):                  
-        self.freq_counts=(Counter([i for i in self.dict["hit"] if i !="Nothing" and i!=None]))
-        print(self.dict)
+        # self.freq_counts=(Counter([i for i in self.dict["hit"] if i !="Nothing" and i!=None]))
+        if not os.path.exists('Scored_animals'):
+            os.mkdir('Scored_animals')
+
         filename=tkinter.simpledialog.askstring("Select Filename","Filename:")
-        for key in self.dict:
-           print(len(self.dict[key]))
-        self.DataFrame=pd.DataFrame.from_dict(self.dict)
-        self.DataFrame['values']=pd.Series(list(self.freq_counts.keys()))
-        self.DataFrame['freq']=pd.Series(list(self.freq_counts.values()))
-        self.DataFrame.to_csv("Scored_animals/{}_{}_scored_behaviour.csv".format(filename,time.strftime("%Y%m%d-%H%M%S")))
+        DataFrame = self.create_full_dataframe()
+        DataFrame.to_csv("Scored_animals/{}_{}_scored_behaviour.csv".format(filename,time.strftime("%Y%m%d-%H%M%S")))
         self.save_status=True
 
-     def rewind(self):
-        self.catchup()
-        self.counts=(Counter([i for i in self.dict["behaviour"] if i !="Nothing"]))
-        self.frame_count-=self.FPS
+     def rewind(self, secs):
+        # self.catchup()
+        # self.counts=(Counter([i for i in self.dict["behaviour"] if i !="Nothing"]))
+        self.frame_count-=self.FPS*secs
         if self.frame_count<0:
                self.frame_count=0
         self.rewind_dict(90)
@@ -235,47 +281,30 @@ class App:
      def rewind_space(self, key):
         self.rewind_space_var = True
 
-     def rewind_min(self):
-        self.catchup()
-        self.counts=(Counter([i for i in self.dict["behaviour"] if i !="Nothing"]))
-        self.frame_count-=self.FPS*60
-        if self.frame_count<0:
-               self.frame_count=0
-        self.rewind_dict(90*60)
-        self.vid.vid.set(cv2.CAP_PROP_POS_FRAMES,self.frame_count-1)
 
 
-     def fast_fwd(self):
-        self.frame_count+=self.FPS*5
-        self.catchup()
-        self.counts=(Counter([i for i in self.dict["behaviour"] if i !="Nothing"]))
+
+     def fast_fwd(self, secs):
+        self.frame_count+=self.FPS*secs
+        # self.catchup()
+        # self.counts=(Counter([i for i in self.dict["behaviour"] if i !="Nothing"]))
         self.vid.vid.set(cv2.CAP_PROP_POS_FRAMES,self.frame_count-1)
   
 
-     def fast_fwd_min(self):
-        self.frame_count+=self.FPS*60
-        self.catchup()
-        self.counts=(Counter([i for i in self.dict["behaviour"] if i !="Nothing"]))
-        self.vid.vid.set(cv2.CAP_PROP_POS_FRAMES,self.frame_count-1)
 
-
-     def check_presses(self): 
-      
-
+    #  def check_presses(self):              
+    #             self.dict["behaviour"].append(self.current_behaviour)     
                 
-                     
-                self.dict["behaviour"].append(self.current_behaviour)     
-                
-                self.counts=(Counter([i for i in self.dict["behaviour"] if i !="Nothing"]))
+    #             self.counts=(Counter([i for i in self.dict["behaviour"] if i !="Nothing"]))
                   
                 
 
-                self.dict["frame"].append(self.frame_count)       
-                if self.dict['behaviour'][-1]!=self.dict['behaviour'][-2]:
-                        self.dict['hit'].append(self.dict['behaviour'][-1])
-                        self.freq_counts=(Counter([i for i in self.dict["hit"] if i !="Nothing" and i!=None]))
-                else:
-                        self.dict['hit'].append(None)
+    #             self.dict["frame"].append(self.frame_count)       
+    #             if self.dict['behaviour'][-1]!=self.dict['behaviour'][-2]:
+    #                     self.dict['hit'].append(self.dict['behaviour'][-1])
+    #                     self.freq_counts=(Counter([i for i in self.dict["hit"] if i !="Nothing" and i!=None]))
+    #             else:
+    #                     self.dict['hit'].append(None)
             
                
                    
@@ -284,12 +313,12 @@ class App:
   
      def update(self):
          if self.play==True:
-                if self.frame_count<1:
-                         self.counts=(Counter([i for i in self.dict["behaviour"] if i !="Nothing"]))
-                         self.freq_counts=(Counter([i for i in self.dict["hit"] if i !="Nothing" and i!=None]))
-                         self.dict['frame'].append(self.frame_count)
-                         self.dict['behaviour'].append("Nothing")
-                         self.dict['hit'].append(None)
+                # if self.frame_count<1:
+                        #  self.counts=(Counter([i for i in self.dict["behaviour"] if i !="Nothing"]))
+                        #  self.freq_counts=(Counter([i for i in self.dict["hit"] if i !="Nothing" and i!=None]))
+                        #  self.dict['frame'].append(self.frame_count)
+                        #  self.dict['behaviour'].append("Nothing")
+                        #  self.dict['hit'].append(None)
                 # Get a frame from the video source
                 ret, frame = self.vid.get_frame()
 
@@ -297,17 +326,18 @@ class App:
                 if ret:
                     
                     self.frame_count+=1
-                    if self.rewind_space_var == True:
-                        self.rewind()
-                        self.rewind_space_var = False
-                    if self.play == True:
-                       self.check_presses()      
-                       self.total_time=(self.frame_count)/self.FPS
+  
                     if self.frame_count%3==0:
-                        self.photo = PIL.ImageTk.PhotoImage(image = PIL.Image.fromarray(frame).resize((1280,720)))
-                        if self.frame_count>5:
-                            self.canvas.delete(self.curframe)
-                        self.curframe=self.canvas.create_image(0, 0, image = self.photo, anchor = tkinter.NW)
+                        if self.rewind_space_var == True:
+                            self.rewind(1)
+                            self.rewind_space_var = False
+                        if self.play == True:
+                            # self.check_presses()      
+                            self.total_time=(self.frame_count)/self.FPS
+                            self.photo = PIL.ImageTk.PhotoImage(image = PIL.Image.fromarray(frame).resize((1280,720)))
+                            if self.frame_count>5:
+                                self.canvas.delete(self.curframe)
+                            self.curframe=self.canvas.create_image(0, 0, image = self.photo, anchor = tkinter.NW)
 
  
                     if self.frame_count%30==0:
@@ -321,7 +351,8 @@ class App:
                 
                         self.tkb.insert("1.0","behaviours are {} and keys are {}\n".format(self.behaviour, self.keys))
 
-                        self.tkb.insert('3.0',("\nTotal Time: {:.2f}\n Time spent on behaviours\n {}\n Frequency of behaviours\n {}".format(self.total_time,self.time_spent,self.freq_counts)))
+                        self.tkb.insert('3.0',("\nTotal Time: {:.2f}\n Time spent on behaviours\n {}\n Frequency of behaviours\n {}".format(self.total_time,self.time_spent,list(zip(self.counts["behaviour"]\
+                            ,self.counts["frequency"])))))
 
                         self.tkb.tag_add("here", "4.11", "5.0")
                         self.tkb.tag_config("here", foreground="#ffb86c")

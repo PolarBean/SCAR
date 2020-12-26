@@ -15,27 +15,36 @@ from ttkthemes import ThemedStyle
 
 class App:
      def __init__(self, window, window_title, video_source=None):
+         ##save which behaviour and which keys correspond
+         self.previous_time = time.time() * 1000
          self.keys_behaviour_dict={}
-         self.keys=[]
          self.behaviour=[]
          self.play=False
-         self.prev_hit=0
+         self.keys = []
+         self.time_spent = [0]
+         
          self.save_status=True
          self.frame_count=0
-         self.playspeed=1  
          self.current_behaviour="Nothing"
+
          self.dict={"frame":[], "behaviour":[],"hit":[]}
          self.rewind_space_var = False
+
+         ##list_o_keys is a list containing the callback function that monitors for a key press
+         ##maybe weird that these are stored as a list
+         self.list_o_keys=[]
+         self.list_o_keys.append(keyboard.on_press_key(' ',self.rewind_space,suppress=True))
+
          self.window = window
+
+         ##Theme settings
          self.window.style = ThemedStyle(self.window)
          self.window.style.set_theme('scidgrey')
          self.window.title(window_title)
-         # self.video_source=tkinter.filedialog.askopenfilename()
-         # open video source (by default this will try to open the computer webcam)
-         # self.vid = MyVideoCapture(self.video_source)
          boldStyle = ttk.Style()
          boldStyle.configure("Bold.TButton", font='Helvetica')
-        # Create a canvas that can fit the above video source size
+
+         ##Create a canvas that can fit the above video source size
          self.canvas = tkinter.Canvas(window, width=1280, bg='#808691', height=720)
          self.window.configure(background='#44475a')
          self.tkb = tkinter.Text(window, height=15)
@@ -44,17 +53,15 @@ class App:
          self.tkb['bg'] = '#282a36'
          self.tkb['fg'] = '#f8f8f2'
 
-         # self.tkb.tag_add("start", START, END)
-
+         ##Create the area to place buttons
          button_frame = tkinter.Frame(window)
          button_frame.place(relx=0.1, rely=0.6, anchor='center')
          for i in range (11):
                 button_frame.columnconfigure(i, weight=1)
          self.canvas.grid(column=0,row=3,columnspan=12)
-         self.list_o_keys=[]
-         self.list_o_keys.append(keyboard.on_press_key(' ',self.rewind_space,suppress=True))
-         # Button that lets the user take a snapshot
 
+
+         ##load the button icons
          img = PIL.Image.open('icons/rewind.png').resize((15,15))
          rewind_icon = PIL.ImageTk.PhotoImage(img)
          img = PIL.Image.open('icons/fast-forward.png').resize((15,15))
@@ -65,6 +72,7 @@ class App:
          pause_icon = PIL.ImageTk.PhotoImage(img)
          img = PIL.Image.open('icons/diskette.png').resize((15, 15))
          save_icon = PIL.ImageTk.PhotoImage(img)
+         ###Define the buttons
          self.add_behave=ttk.Button(window, text="Add Behaviour", width=15, command=self.askname)
          self.OpenVidButton=ttk.Button(window, text="Open Video", width=15, command=self.open_vid)
          self.SlowDownButt=ttk.Button(window, text="Slower", width=10, command=self.slower)
@@ -76,6 +84,7 @@ class App:
          self.rewindbuttmin=ttk.Button(window, compound=tkinter.LEFT,image = rewind_icon,text="1m", width=10, command=self.rewind_min)
          self.fastfwdbutt=ttk.Button(window, compound=tkinter.LEFT,image = fwd_icon,text="5s", width=10, command=self.fast_fwd)
          self.fastfwdbuttmin=ttk.Button(window, compound=tkinter.LEFT,image = fwd_icon,text="1m", width=10, command=self.fast_fwd_min)
+         ###Place them on a grid
          self.add_behave.grid(column=0,row=4)
          self.OpenVidButton.grid(column=1,row=4)
          self.SlowDownButt.grid(column=2,row=4)
@@ -88,17 +97,15 @@ class App:
          self.fastfwdbutt.grid(column=9,row=4)
          self.fastfwdbuttmin.grid(column=10,row=4)
          # After it is called once, the update method will be automatically called every delay milliseconds
-         #self.bold_font = Font(family="UbuntuMono Nerd Font")
-
-
-        
+         #self.bold_font = Font(family="UbuntuMono Nerd Font")        
          self.window.mainloop()
+
 
      def open_vid(self):
             cont=True
             if self.save_status==False:
                 cont=tkinter.messagebox.askokcancel(title="You haven't saved!!!", message="Continue without saving?")
-            if cont==True: 
+            if cont==True:
                 try:
                     self.video_source=tkinter.filedialog.askopenfilename()
                     self.vid = MyVideoCapture(self.video_source)
@@ -106,21 +113,19 @@ class App:
                     self.play=False
                     self.save_status=False
                     self.frame_count=0
-                    self.playspeed=1  
                     self.dict={"frame":[], "behaviour":[],"hit":[]}
-                    self.delay = int(1000 / self.FPS)-3
-                    self.original_delay = self.delay
-                    if self.delay <= 1:
-                        self.delay = 1
-                    self.fixed_inc = (self.delay / 10)
+                    ##inter-frame interval in milliseconds
+                    self.delay = int(1000 / self.FPS)
+                    
+
                     self.frame_count = 0
                     self.update()
-                    self.framerate_set = self.FPS
-                    effective_framerate = self.original_delay / (self.delay / self.FPS)
-                    self.capped_FR = np.round(effective_framerate / 45)
-                    self.tkb.insert('0.0', ("Current Speed: {}\n".format(effective_framerate / self.FPS)))
-                except Exception:
-                    print("oh no")
+                    ##cap frame updates to 30 FPS
+                    self.effective_framerate = self.FPS
+
+
+                except Exception as e:
+                    print(e)
                     
                
     #             tkinter.filedialog.askopenfilename(title="Vid name",prompt="Vid name:")
@@ -129,44 +134,47 @@ class App:
 
 
 
-
+     def cap_framerate(self):
+            if self.effective_framerate>30:
+                self.frame_cap = int(30/self.effective_framerate)
+            else:
+                self.frame_cap = 1
 
      def slower(self):
+            increment = (1000 / self.FPS) * 0.1
+            self.delay += increment
 
-            self.delay=int((self.delay)+(self.original_delay/4))
-            print(self.delay)
-            if self.delay<=1:
-                self.delay=1
-            effective_framerate = self.original_delay / (self.delay / self.FPS)
+            self.cap_framerate()
 
-            self.capped_FR = np.round(effective_framerate/45)-1
-            if self.capped_FR<1:
-                self.capped_FR=1
-            print(self.capped_FR)
-            self.tkb.insert('0.0',("Current Speed: {}\n".format(effective_framerate/self.FPS)))
-            self.tkb.insert("1.0","behaviours are {} and keys are {}\n".format(self.behaviour, self.keys))
+            self.delay = int(self.delay)
+
 
             
      def faster(self):
-            self.delay=int((self.delay)-(self.delay/6))
-            print(self.delay)
+            increment = (1000 / self.FPS) * 0.1
+
+            self.delay-= increment
+            self.delay = int(self.delay)
+            self.cap_framerate()
+
             if self.delay<=1:
                 self.delay=1
-            effective_framerate = self.original_delay/(self.delay/self.FPS)
-            self.capped_FR = np.round(effective_framerate/45)-2
-            if self.capped_FR<1:
-                self.capped_FR=1
 
-            print(self.capped_FR)
-            self.tkb.insert('0.0',("Current Speed: {}\n".format(effective_framerate/self.FPS)))
-            self.tkb.insert("1.0","behaviours are {} and keys are {}\n".format(self.behaviour, self.keys))
- 
+
+
      def playvid(self):
             self.play=True
+
+
      def pausevid(self):
             self.play=False
+
+
      def callback_keypress(self,t):
         self.current_behaviour=self.keys_behaviour_dict[t.name]
+        self.time_spent=list(zip(self.counts.keys(),[round(i/self.FPS,2) for i in list(self.counts.values())]))
+
+
      def release(self,t):                   
                 self.current_behaviour="Nothing"
      def askname(self):
@@ -177,11 +185,12 @@ class App:
         self.keys_behaviour_dict[self.keys[-1]]=self.behaviour_temp
         self.list_o_keys.append(keyboard.on_press_key(self.keys[-1],self.callback_keypress,suppress=False))
         self.list_o_keys.append(keyboard.on_release_key(self.keys[-1],self.release,suppress=True))
-        self.tkb.insert('0.0',("Current Speed: {}\n".format(self.capped_FR)))
-        self.tkb.insert("1.0","behaviours are {} and keys are {}\n".format(self.behaviour, self.keys))
 
+        self.tkb.delete('0.0 ', "30.0")
 
+        self.tkb.insert('0.0',("Current Speed: {}\n".format(self.fps)))
   
+        self.tkb.insert("1.0","behaviours are {} and keys are {}\n".format(self.behaviour, self.keys))
 
 
      def catchup(self):
@@ -271,7 +280,7 @@ class App:
                
                    
    
-                
+    
   
      def update(self):
          if self.play==True:
@@ -286,31 +295,42 @@ class App:
 
 
                 if ret:
-
+                    
                     self.frame_count+=1
                     if self.rewind_space_var == True:
                         self.rewind()
                         self.rewind_space_var = False
                     if self.play == True:
                        self.check_presses()      
-                       ###This is slow, move time_spent inside callback_keypress and only run if button is depressed
-                       time_spent=list(zip(self.counts.keys(),[round(i/self.FPS,2) for i in list(self.counts.values())]))
-                       total_time=(self.frame_count)/self.FPS
-                    if self.frame_count%self.capped_FR==0:
+                       self.total_time=(self.frame_count)/self.FPS
+                    if self.frame_count%3==0:
                         self.photo = PIL.ImageTk.PhotoImage(image = PIL.Image.fromarray(frame).resize((1280,720)))
+                        if self.frame_count>5:
+                            self.canvas.delete(self.curframe)
+                        self.curframe=self.canvas.create_image(0, 0, image = self.photo, anchor = tkinter.NW)
 
-                        self.canvas.create_image(0, 0, image = self.photo, anchor = tkinter.NW)
+ 
+                    if self.frame_count%30==0:
+                        now = time.time() * 1000
+                        fps = 1000 / ( now - self.previous_time )
+                        self.previous_time = now
+                        self.fps =fps*30
+                        self.tkb.delete('0.0 ', "30.0")
 
-                        self.tkb.delete('4.0 ', "30.0")
+                        self.tkb.insert('0.0',("Current Speed: {}\n".format(round(self.fps/self.FPS, 2))))
+                
+                        self.tkb.insert("1.0","behaviours are {} and keys are {}\n".format(self.behaviour, self.keys))
 
+                        self.tkb.insert('3.0',("\nTotal Time: {:.2f}\n Time spent on behaviours\n {}\n Frequency of behaviours\n {}".format(self.total_time,self.time_spent,self.freq_counts)))
 
-                        self.tkb.insert('3.0',("\nTotal Time: {:.2f}\n Time spent on behaviours\n {}\n Frequency of behaviours\n {}".format(total_time,time_spent,self.freq_counts)))
                         self.tkb.tag_add("here", "4.11", "5.0")
                         self.tkb.tag_config("here", foreground="#ffb86c")
                         self.tkb.tag_add("behave", "6.0", "7.0")
                         self.tkb.tag_config("behave", foreground="#ff79c6")
                         self.tkb.tag_add("behave", "8.0", "9.0")
                         self.tkb.tag_config("behave", foreground="#ff5555")
+                   
+
 
          self.window.after(self.delay, self.update)
  

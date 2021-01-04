@@ -1,3 +1,4 @@
+from progress.progress.bar import create_all_behaviour_bars
 import tkinter
 import cv2
 import PIL.Image, PIL.ImageTk
@@ -16,31 +17,35 @@ import tkinter.ttk as ttk
 from ttkthemes import ThemedStyle
 from tkinter import *
 from numpy.lib.stride_tricks import as_strided
+from progress.progress.bar import IncrementalBar as ChargingBar
 
 class App:
      def __init__(self, window, window_title, video_source=None):
          ##save which behaviour and which keys correspond
-         self.previous_time = time.time() * 1000
          self.keys_behaviour_dict={}
          self.behaviour=[]
-         self.play=False
+         self.init_check=True
          self.keys = []
          self.fps_measure=[]
-
+         self.play=False
          self.held_down=False
          self.time_spent = [0]
-
+         self.skip_forward = False
+         self.skip_backwards = False
+         self.frame_cap = 3
+         self.delay = 1
          self.save_status=True
          self.frame_count=0
          self.current_behaviour="Nothing"
 
-         self.dict={"frame":[0], "behaviour":['Nothing'],"time":[0],"hit":[None]}
+         self.dict={"frame":[0], "behaviour":['Nothing'],"time":[0],"hits":[None]}
          self.rewind_space_var = False
 
          ##list_o_keys is a list containing the callback function that monitors for a key press
          ##maybe weird that these are stored as a list
          self.list_o_keys=[]
-
+         self.list_o_keys.append(keyboard.on_press_key(',',self.callback_reverse,suppress=False))
+         self.list_o_keys.append(keyboard.on_press_key('.',self.callback_forward,suppress=True))
          self.window = window
 
          ##Theme settings
@@ -52,7 +57,7 @@ class App:
 
          ##Create a canvas that can fit the above video source size
          self.canvas = tkinter.Canvas(window, width=1280, bg='#808691', height=720)
-         self.curframe=self.canvas.create_image(0, 720-540, anchor = tkinter.NW)
+         self.curframe=self.canvas.create_image(0, 0, anchor = tkinter.NW)
 
          self.window.configure(background='#44475a')
          self.tkb = tkinter.Text(window, height=15)
@@ -63,19 +68,30 @@ class App:
          self.tkb['bg'] = '#282a36'
          self.tkb['fg'] = '#f8f8f2'
 
+
          ##Create the area to place buttons
          button_frame = tkinter.Frame(window, height=1)
          button_frame.place(relx=0.5, rely=0.74, anchor='center')
-         lstm_behave_cont = tkinter.Frame(window, height=1)
-         lstm_behave_cont.place(relx=0.54, rely=0.77, anchor='center')
+         self.lstm_behave_cont = tkinter.Frame(window, height=1)
+         self.lstm_behave_cont.place(relx=0.61, rely=0.77, anchor='center')
 
 
          for i in range (13):
                 button_frame.columnconfigure(i, weight=1)
          self.canvas.grid(column=0,row=3,columnspan=13)
 
-         self.open_behave_file = ttk.Button(lstm_behave_cont, text="Open LSTM", width=15, command=lambda: print('test'))
+         self.open_behave_file = ttk.Button(self.lstm_behave_cont, text="Open LSTM", width=15, command=self.open_lstm)
          self.open_behave_file.grid(column=0,row=0, rowspan=1, sticky=W)
+         self.drop_down_select = StringVar(window)
+         self.drop_down_select.set("all")
+         self.drop_down = OptionMenu(self.lstm_behave_cont, self.drop_down_select, "all")
+         self.drop_down.config(width=8)
+         self.drop_down.grid(column=1, row=0)
+         self.previous_behaviour = ttk.Button(self.lstm_behave_cont, text = '< Prev', command = lambda: self.skip_to_behaviour(direction = 'previous'))
+         self.next_behaviour = ttk.Button(self.lstm_behave_cont, text = 'Next >', command = lambda: self.skip_to_behaviour(direction = 'next'))
+         self.previous_behaviour.grid(column=2, row=0)
+         self.next_behaviour.grid(column=3, row=0)
+         
 
          ##load the button icons
          img = PIL.Image.open('icons/rewind.png').resize((15,15))
@@ -96,10 +112,10 @@ class App:
          self.pausebutt=ttk.Button(button_frame, text="Pause",image = pause_icon, compound=tkinter.LEFT, width=8, command=self.pausevid)
          self.FasterButt=ttk.Button(button_frame, text="Faster", width=8, command=self.faster)
          self.Save_Butt=ttk.Button(button_frame, text="Save",image = save_icon, compound=tkinter.LEFT,  width=8, command=self.Save_DataFrame)
-         self.rewindbutt=ttk.Button(button_frame, compound=tkinter.LEFT,image = rewind_icon,text="1s", width=8, command=lambda: self.rewind(1))
-         self.rewindbuttmin=ttk.Button(button_frame, compound=tkinter.LEFT,image = rewind_icon,text="1m", width=8, command=lambda: self.rewind(60))
-         self.fastfwdbutt=ttk.Button(button_frame, compound=tkinter.LEFT,image = fwd_icon,text="5s", width=8, command=lambda: self.fast_fwd(1))
-         self.fastfwdbuttmin=ttk.Button(button_frame, compound=tkinter.LEFT,image = fwd_icon,text="1m", width=8, command=lambda: self.fast_fwd(60))
+         self.rewindbutt=ttk.Button(button_frame, compound=tkinter.LEFT,image = rewind_icon,text="1s", width=8, command=lambda: self.rewind(1 * self.FPS))
+         self.rewindbuttmin=ttk.Button(button_frame, compound=tkinter.LEFT,image = rewind_icon,text="1m", width=8, command=lambda: self.rewind(60 * self.FPS))
+         self.fastfwdbutt=ttk.Button(button_frame, compound=tkinter.LEFT,image = fwd_icon,text="5s", width=8, command=lambda: self.fast_fwd(1 * self.FPS))
+         self.fastfwdbuttmin=ttk.Button(button_frame, compound=tkinter.LEFT,image = fwd_icon,text="1m", width=8, command=lambda: self.fast_fwd(60 * self.FPS))
          self.frame_rate_lower=ttk.Button(button_frame, compound=tkinter.LEFT,text="FR lower", width=8, command=lambda: self.framerate(-1))
          self.frame_rate_higher=ttk.Button(button_frame, compound=tkinter.LEFT,text="FR higher", width=10, command=lambda: self.framerate(1))
 
@@ -121,7 +137,69 @@ class App:
          #self.bold_font = Font(family="UbuntuMono Nerd Font")        
          self.window.mainloop()
 
+     def open_lstm(self):
+         self.lstm_is_open = True
+         self.pausevid()
+         lstm_file = tkinter.filedialog.askopenfilename()
+         self.lstm_file = pd.read_csv(lstm_file).hits
+         self.lstm_raster = create_all_behaviour_bars(self.lstm_file)
+         self.behaviour_view.delete('2.0','30.0')
+         self.behaviour_view.insert('5.0', self.lstm_raster)
+         unique_behaviours = ['all']
+         self.vid.vid_progress = ChargingBar('Frames  ', max=int(len(self.lstm_file)))
 
+         unique_behaviours.extend([i for i in filter(lambda v: v==v, self.lstm_file.unique()) if i!='Nothing'])
+         self.drop_down = OptionMenu(self.lstm_behave_cont, self.drop_down_select, *unique_behaviours)
+         self.drop_down.config(width=8)
+         self.drop_down.grid(column=1, row=0)
+
+     def skip_to_behaviour(self, direction):
+         behaviour= self.drop_down_select.get()
+         if behaviour=='all':
+            behaviour = [i for i in filter(lambda v: v==v, self.lstm_file.unique()) if i!='Nothing']
+         else:
+              behaviour = [behaviour]
+
+         behaviour_loc = np.array([j for i, j in zip(self.lstm_file, self.lstm_file.index) if i in behaviour])
+         closest_index  = behaviour_loc - self.frame_count
+
+         if direction == 'next':
+             ##so you can double press due to the quarter second preview feature
+             closest_index = closest_index[closest_index>(self.FPS/3)]
+             if len(closest_index)==0:
+                     return
+             closest_index = (closest_index[0] - self.FPS/4)
+
+             ##start a quarter second before the behaviour
+             print("self.frame_count: {}".format(self.frame_count + closest_index))
+             self.fast_fwd(closest_index)
+
+         if direction == 'previous':
+             ##make it so you can double click back and not get stuck on a behaviour
+             closest_index = closest_index[closest_index<-(self.FPS/3)]
+             if len(closest_index)==0:
+                 return
+             closest_index = abs(closest_index[-1]) + self.FPS/4
+             ##start a quarter second before the behaviour
+             print("self.frame_count: {}".format(self.frame_count - closest_index))
+             self.rewind(closest_index)
+         
+
+     def draw_behaviour(self, behaviour):
+         text = self.canvas.create_text(100, 50, fill='white',tag='text_obj', font='Hershey 20 bold', text=behaviour.upper())
+         bbox = self.canvas.bbox(text)
+         outline = self.canvas.create_rectangle(bbox, outline='red',tag='outline', fill='black')
+         self.canvas.tag_raise(text, outline)
+
+     def check_lstm(self):
+         current_behaviour = self.lstm_file[self.frame_count]
+         if not pd.isnull(current_behaviour) and current_behaviour!='Nothing':
+             self.draw_behaviour(current_behaviour)
+         if current_behaviour=='Nothing':
+            self.canvas.delete("text_obj")
+            self.canvas.delete("outline")
+
+    
      def open_vid(self):
             cont=True
             if self.save_status==False:
@@ -131,27 +209,35 @@ class App:
                     self.video_source=tkinter.filedialog.askopenfilename()
                     self.vid = MyVideoCapture(self.video_source)
                     self.FPS=self.vid.FPS
-                    self.play=False
+                    self.pausevid()
                     self.save_status=False
+                    self.lstm_is_open = False
+                    self.previous_time = time.time() * 1000
+
                     self.frame_count=0
-                    self.dict={"frame":[0], "behaviour":['Nothing'],"time":[0],"hit":[None]}
+                    self.fps_measure=[]
+
+                    self.dict={"frame":[0], "behaviour":['Nothing'],"time":[0],"hits":[None]}
                     self.counts = dict({"behaviour": [], "value": [], "frequency": []})
                     ##inter-frame interval in milliseconds
                     # self.delay = int(1000 / self.FPS)
-                    self.delay=1
-                    
+                    self.curframe=self.canvas.create_image((1280-(self.vid.width))/2, 720-self.vid.height, anchor = tkinter.NW)
+                    progress_stat = self.vid.vid_progress.next()
+                    self.behaviour_view.delete('0.0 ', "30.0")
 
+                    self.behaviour_view.insert('0.0',("{}".format(progress_stat)))
                     self.tkb.delete('0.0 ', "30.0")
 
-                    self.tkb.insert('0.0',("Current Speed: {}\n".format(self.fps_measure)))
+                    self.tkb.insert('0.0',("Current Speed: {}\n".format(np.mean(self.fps_measure))))
             
                     self.tkb.insert("1.0","behaviours are {} and keys are {}\n".format(self.behaviour, self.keys))
-
                     self.frame_count = 0
-                    self.update()
-                    ##cap frame updates to 30 FPS
                     self.effective_framerate = self.FPS
-                    self.frame_cap = 3
+                    if self.init_check:
+                        self.update()
+                        self.init_check=False
+                    ##cap frame updates to 30 FPS
+
                     # self.cap_framerate()
 
                 except Exception as e:
@@ -201,6 +287,14 @@ class App:
             keyboard.unhook(self.rewind_space_key)
             self.play=False
       
+     def callback_forward(self, t):
+         self.skip_forward=True
+        
+
+     def callback_reverse(self, t):
+         self.skip_backwards=True
+
+
 
      def callback_keypress(self,t):    
         if self.held_down==False:
@@ -212,7 +306,7 @@ class App:
             self.dict["frame"].append(self.frame_count) 
             self.held_down=True
 
-
+         
      def count_behaviours(self):
         counts = dict({"behaviour": [], "value": [], "frequency": []})
         for behaviour in set(self.dict["behaviour"]):
@@ -279,15 +373,15 @@ class App:
         
         print(("this",(self.frame_count),len(full_behaviours)))
         df = pd.DataFrame({'frame':frames, 'behaviour':full_behaviours})
-        df["hit"] = (df["behaviour"].shift(1, fill_value=df["behaviour"].head(1)) != df["behaviour"]) 
-        df["hit"]=df["hit"]*df["behaviour"]
+        df["hits"] = (df["behaviour"].shift(1, fill_value=df["behaviour"].head(1)) != df["behaviour"]) 
+        df["hits"]=df["hits"]*df["behaviour"]
         df["values"] = pd.Series(list(self.counts["value"]))
         df["freq"] = pd.Series(list(self.counts["frequency"]))
         return df
 
 
      def Save_DataFrame(self):                  
-        # self.freq_counts=(Counter([i for i in self.dict["hit"] if i !="Nothing" and i!=None]))
+        # self.freq_counts=(Counter([i for i in self.dict["hits"] if i !="Nothing" and i!=None]))
         if not os.path.exists('Scored_animals'):
             os.mkdir('Scored_animals')
 
@@ -296,13 +390,17 @@ class App:
         DataFrame.to_csv("Scored_animals/{}_{}_scored_behaviour.csv".format(filename,time.strftime("%Y%m%d-%H%M%S")))
         self.save_status=True
 
-     def rewind(self, secs):
+     def rewind(self, frames):
             # self.catchup()
         # self.counts=(Counter([i for i in self.dict["behaviour"] if i !="Nothing"]))
-        self.frame_count-=self.FPS*secs
+        frames = int(frames)
+
+        self.frame_count-=frames
         if self.frame_count<0:
                self.frame_count=0
-        self.rewind_dict(90)
+        self.rewind_dict(frames)
+        self.vid.vid_progress.skip_to_frame(self.frame_count-1)
+        self.vid.vid_progress.next()
         self.vid.vid.set(cv2.CAP_PROP_POS_FRAMES,self.frame_count-1)
 
 
@@ -317,12 +415,13 @@ class App:
              self.frame_cap=1
 
 
-     def fast_fwd(self, secs):
-        self.frame_count+=self.FPS*secs
-        # self.catchup()
-        # self.counts=(Counter([i for i in self.dict["behaviour"] if i !="Nothing"]))
+     def fast_fwd(self, frames):
+        frames = int(frames)
+        self.frame_count+=frames
+        
         self.vid.vid.set(cv2.CAP_PROP_POS_FRAMES,self.frame_count-1)
-
+        self.vid.vid_progress.skip_to_frame(self.frame_count-1)
+        self.vid.vid_progress.next()
     #  def check_presses(self):              
     #             self.dict["behaviour"].append(self.current_behaviour)     
                 
@@ -333,7 +432,7 @@ class App:
     #             self.dict["frame"].append(self.frame_count)       
     #             if self.dict['behaviour'][-1]!=self.dict['behaviour'][-2]:
     #                     self.dict['hit'].append(self.dict['behaviour'][-1])
-    #                     self.freq_counts=(Counter([i for i in self.dict["hit"] if i !="Nothing" and i!=None]))
+    #                     self.freq_counts=(Counter([i for i in self.dict["hits"] if i !="Nothing" and i!=None]))
     #             else:
     #                     self.dict['hit'].append(None)
             
@@ -347,12 +446,12 @@ class App:
         return x.reshape(r*b0, c*b1, z)                      # create new 2D array
 
     
-  
+
      def update(self):
          if self.play==True:
                 # if self.frame_count<1:
                         #  self.counts=(Counter([i for i in self.dict["behaviour"] if i !="Nothing"]))
-                        #  self.freq_counts=(Counter([i for i in self.dict["hit"] if i !="Nothing" and i!=None]))
+                        #  self.freq_counts=(Counter([i for i in self.dict["hits"] if i !="Nothing" and i!=None]))
                         #  self.dict['frame'].append(self.frame_count)
                         #  self.dict['behaviour'].append("Nothing")
                         #  self.dict['hit'].append(None)
@@ -361,7 +460,18 @@ class App:
 
                     ret, frame = self.vid.get_frame()
                     if ret:
+                        if self.lstm_is_open:
+                            self.check_lstm()
+                            if self.skip_forward:
+                                self.skip_to_behaviour(direction = 'next')
+                                self.skip_forward = False
+                            if self.skip_backwards:
+                                self.skip_to_behaviour(direction = 'previous')
+                                self.skip_backwards = False
                         self.frame_count+=1
+                        progress_stat = self.vid.vid_progress.next()
+                        self.behaviour_view.delete('0.0 ', "2.0")
+                        self.behaviour_view.insert('0.0',(progress_stat))
                     if self.frame_count%10==0:
                         now = time.time() * 1000
                         fps = 1000 / ( now - self.previous_time )
@@ -369,7 +479,7 @@ class App:
                         self.fps_measure.append(fps*10)
                         self.fps_measure=self.fps_measure[-10:]
 
-            
+
 
                         
                         percent_speed = np.mean(self.fps_measure)/self.FPS
@@ -399,10 +509,11 @@ class App:
   
                     # if self.frame_count%==0:
                     if self.rewind_space_var == True:
-                        self.rewind(1)
+                        self.rewind(1 * self.FPS)
                         self.rewind_space_var = False
                     if self.play == True:
                         self.total_time=(self.frame_count)/self.FPS
+                        
                         # frame = np.array(self.scale(frame, 720, 1280))
                         # frame=cv2.resize(frame,(1280,720), interpolation=cv2.INTER_LINEAR)
                         # print(frame.dtype)
@@ -440,6 +551,9 @@ class MyVideoCapture:
              raise ValueError("Unable to open video source", video_source)
         # self.vid.set(cv2.CAP_PROP_POS_FRAMES,self.start)
          # Get video source width and height
+         total_frames = self.vid.get(cv2.CAP_PROP_FRAME_COUNT)
+         print("total_frames: {}".format(total_frames))
+         self.vid_progress = ChargingBar('Frames  ', max=int(total_frames))
          self.FPS   = self.vid.get(cv2.CAP_PROP_FPS)
          self.width = self.vid.get(cv2.CAP_PROP_FRAME_WIDTH)
          self.height = self.vid.get(cv2.CAP_PROP_FRAME_HEIGHT)
@@ -467,7 +581,8 @@ if __name__ == "__main__":
     # stuff only to run when not called via 'import' here
     # Create a window and pass it to the Application object
     win = tkinter.Tk()
-    App(win, "Tkinter and OpenCV")
+    win.iconbitmap(r'C:\Users\harry\SCAR\MORLOG\icons/scar_logo.ico')
+    App(win, "SCAR")
 
 ##multithreadingexperiment
 # class MyVideoCapture:

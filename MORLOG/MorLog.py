@@ -1,4 +1,4 @@
-from progress.progress.bar import create_all_behaviour_bars
+from progress.bar import create_all_behaviour_bars
 import tkinter
 import cv2
 import PIL.Image, PIL.ImageTk
@@ -17,7 +17,7 @@ import tkinter.ttk as ttk
 from ttkthemes import ThemedStyle
 from tkinter import *
 from numpy.lib.stride_tricks import as_strided
-from progress.progress.bar import IncrementalBar as ChargingBar
+from progress.bar import IncrementalBar as ChargingBar
 
 class App:
      def __init__(self, window, window_title, video_source=None):

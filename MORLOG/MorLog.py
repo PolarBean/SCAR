@@ -374,7 +374,7 @@ class App:
 
         indexes = [i<=time for i in self.dict['frame']]
         for key in self.dict:
-                self.dict[key]=[i for i,j in zip(self.dict[key], indexes) if j]
+            self.dict[key]=[i for i,j in zip(self.dict[key], indexes) if j]
         self.counts = self.count_behaviours()
         self.time_spent=list(zip(self.counts["behaviour"],[round(i/self.FPS,2) for i in list(self.counts["value"])]))
 

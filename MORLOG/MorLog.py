@@ -141,7 +141,7 @@ class App:
          self.lstm_is_open = True
          self.pausevid()
          lstm_file = tkinter.filedialog.askopenfilename()
-         self.lstm_file = pd.read_csv(lstm_file).hits
+         self.lstm_file = pd.read_csv(lstm_file.hits)
          self.lstm_raster = create_all_behaviour_bars(self.lstm_file)
          self.behaviour_view.delete('2.0','30.0')
          self.behaviour_view.insert('5.0', self.lstm_raster)
@@ -171,7 +171,6 @@ class App:
              closest_index = (closest_index[0] - self.FPS/4)
 
              ##start a quarter second before the behaviour
-             print("self.frame_count: {}".format(self.frame_count + closest_index))
              self.fast_fwd(closest_index)
 
          if direction == 'previous':
@@ -181,7 +180,6 @@ class App:
                  return
              closest_index = abs(closest_index[-1]) + self.FPS/4
              ##start a quarter second before the behaviour
-             print("self.frame_count: {}".format(self.frame_count - closest_index))
              self.rewind(closest_index)
          
 
@@ -228,9 +226,9 @@ class App:
                     self.behaviour_view.insert('0.0',("{}".format(progress_stat)))
                     self.tkb.delete('0.0 ', "30.0")
 
-                    self.tkb.insert('0.0',("Current Speed: {}\n".format(np.mean(self.fps_measure))))
+                    self.tkb.insert('1.0',("Current Speed: {}\n".format(np.mean(self.fps_measure))))
             
-                    self.tkb.insert("1.0","behaviours are {} and keys are {}\n".format(self.behaviour, self.keys))
+                    self.tkb.insert("2.0","behaviours are {} and keys are {}\n".format(self.behaviour, self.keys))
                     self.frame_count = 0
                     self.effective_framerate = self.FPS
                     if self.init_check:
@@ -296,14 +294,20 @@ class App:
 
 
 
-     def callback_keypress(self,t):    
+     def callback_keypress(self,t):
         if self.held_down==False:
             self.dict["time"].append(self.frame_count-self.dict["frame"][-1])
 
             self.dict["behaviour"].append(self.current_behaviour)   
             self.current_behaviour=self.keys_behaviour_dict[t.name]
+            self.dict["behaviour"].append(self.current_behaviour)   
 
             self.dict["frame"].append(self.frame_count) 
+            self.dict["frame"].append(0)
+            self.dict["time"].append(0)
+
+            self.counts = self.count_behaviours()
+            self.time_spent=list(zip(self.counts["behaviour"],[round(i/self.FPS,2) for i in list(self.counts["value"])]))
             self.held_down=True
 
          
@@ -321,10 +325,12 @@ class App:
 
 
      def release(self,t):     
-                self.dict["behaviour"].append(self.current_behaviour)  
-                self.dict["time"].append(self.frame_count-self.dict["frame"][-1])
+                # if len(self.dict["frame"])>0:
+                self.dict["time"][-1] = self.frame_count-self.dict["frame"][-1]
+                # else:
 
-                self.dict["frame"].append(self.frame_count) 
+
+                self.dict["frame"][-1] = self.frame_count
                 
                 self.current_behaviour="Nothing"
                 self.counts = self.count_behaviours()
@@ -343,9 +349,9 @@ class App:
 
         self.tkb.delete('0.0 ', "30.0")
 
-        self.tkb.insert('0.0',("Current Speed: {}\n".format(self.fps_measure)))
+        self.tkb.insert('1.0',("Current Speed: {}\n".format(self.fps_measure)))
   
-        self.tkb.insert("1.0","behaviours are {} and keys are {}\n".format(self.behaviour, self.keys))
+        self.tkb.insert("2.0","behaviours are {} and keys are {}\n".format(self.behaviour, self.keys))
 
 
      def catchup(self):
@@ -359,8 +365,18 @@ class App:
         # self.dict['hit'].extend(hit)
 
      def rewind_dict(self, time):
+
+
+        time=self.frame_count-time
+        if time<0:
+            time=0
+
+
+        indexes = [i<=time for i in self.dict['frame']]
         for key in self.dict:
-                self.dict[key]=self.dict[key][:-time]
+                self.dict[key]=[i for i,j in zip(self.dict[key], indexes) if j]
+        self.counts = self.count_behaviours()
+        self.time_spent=list(zip(self.counts["behaviour"],[round(i/self.FPS,2) for i in list(self.counts["value"])]))
 
      def create_full_dataframe(self):
         self.dict["behaviour"].append(self.current_behaviour)  
@@ -371,7 +387,6 @@ class App:
         for behaviour, frame in zip(self.dict["behaviour"], self.dict["time"]):
             full_behaviours.extend([behaviour]*frame)
         
-        print(("this",(self.frame_count),len(full_behaviours)))
         df = pd.DataFrame({'frame':frames, 'behaviour':full_behaviours})
         df["hits"] = (df["behaviour"].shift(1, fill_value=df["behaviour"].head(1)) != df["behaviour"]) 
         df["hits"]=df["hits"]*df["behaviour"]
@@ -394,11 +409,11 @@ class App:
             # self.catchup()
         # self.counts=(Counter([i for i in self.dict["behaviour"] if i !="Nothing"]))
         frames = int(frames)
+        self.rewind_dict(frames)
 
         self.frame_count-=frames
         if self.frame_count<0:
                self.frame_count=0
-        self.rewind_dict(frames)
         self.vid.vid_progress.skip_to_frame(self.frame_count-1)
         self.vid.vid_progress.next()
         self.vid.vid.set(cv2.CAP_PROP_POS_FRAMES,self.frame_count-1)
@@ -474,7 +489,10 @@ class App:
                         self.behaviour_view.insert('0.0',(progress_stat))
                     if self.frame_count%10==0:
                         now = time.time() * 1000
-                        fps = 1000 / ( now - self.previous_time )
+                        looptime = now - self.previous_time
+                        if looptime<=0:
+                            looptime=1
+                        fps = 1000 / ( looptime )
                         self.previous_time = now
                         self.fps_measure.append(fps*10)
                         self.fps_measure=self.fps_measure[-10:]
@@ -486,16 +504,16 @@ class App:
                         
                         real_fps=(self.FPS*percent_speed)/self.frame_cap
                         self.tkb.delete('0.0 ', "30.0")
+                        self.tkb.insert('0.0', "animal ID is: {}".format(self.video_source.split('/')[-1]))
 
-                        self.tkb.insert('0.0',("Current Speed: {}\n".format(round(percent_speed, 2))))
-                        self.tkb.insert('1.0', ('Current FPS: {}\n'.format(round(real_fps, 2))))
+                        self.tkb.insert('1.0',("Current Speed: {}\n".format(round(percent_speed, 2))))
+                        self.tkb.insert('2.0', ('Current FPS: {}\n'.format(round(real_fps, 2))))
                 
-                        self.tkb.insert("2.0","behaviours are {} and keys are {}\n".format(self.behaviour, self.keys))
+                        self.tkb.insert("3.0","behaviours are {} and keys are {}\n".format(self.behaviour, self.keys))
                         stringtime = time.gmtime(self.total_time)
                         stringtime = time.strftime("%H:%M:%S",stringtime)
-                        self.tkb.insert('4.0',("\nTotal Time: {}\n Time spent on behaviours\n {}\n Frequency of behaviours\n {}".format(stringtime,self.time_spent,list(zip(self.counts["behaviour"]\
+                        self.tkb.insert('5.0',("\nTotal Time: {}\n Time spent on behaviours\n {}\n Frequency of behaviours\n {}".format(stringtime,self.time_spent,list(zip(self.counts["behaviour"]\
                             ,self.counts["frequency"])))))
-
                         self.tkb.tag_add("here", "5.11", "6.0")
                         self.tkb.tag_config("here", foreground="#ffb86c")
                         self.tkb.tag_add("behave", "7.0", "8.0")
@@ -552,7 +570,6 @@ class MyVideoCapture:
         # self.vid.set(cv2.CAP_PROP_POS_FRAMES,self.start)
          # Get video source width and height
          total_frames = self.vid.get(cv2.CAP_PROP_FRAME_COUNT)
-         print("total_frames: {}".format(total_frames))
          self.vid_progress = ChargingBar('Frames  ', max=int(total_frames))
          self.FPS   = self.vid.get(cv2.CAP_PROP_FPS)
          self.width = self.vid.get(cv2.CAP_PROP_FRAME_WIDTH)

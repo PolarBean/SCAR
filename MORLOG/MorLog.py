@@ -142,10 +142,9 @@ class App:
          self.window.mainloop()
 
      def open_lstm(self):
-         self.lstm_is_open = True
          self.pausevid()
          lstm_file = tkinter.filedialog.askopenfilename()
-         self.lstm_file = pd.read_csv(lstm_file.hits)
+         self.lstm_file = pd.read_csv(lstm_file).hits
          self.lstm_raster = create_all_behaviour_bars(self.lstm_file)
          self.behaviour_view.delete('2.0','30.0')
          self.behaviour_view.insert('5.0', self.lstm_raster)
@@ -156,6 +155,8 @@ class App:
          self.drop_down = OptionMenu(self.lstm_behave_cont, self.drop_down_select, *unique_behaviours)
          self.drop_down.config(width=8)
          self.drop_down.grid(column=1, row=0)
+         self.lstm_is_open = True
+
 
      def skip_to_behaviour(self, direction):
          behaviour= self.drop_down_select.get()
@@ -203,6 +204,7 @@ class App:
 
     
      def open_vid(self):
+            self.pausevid()
             cont=True
             if self.save_status==False:
                 cont=tkinter.messagebox.askokcancel(title="You haven't saved!!!", message="Continue without saving?")

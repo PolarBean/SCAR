@@ -2,7 +2,7 @@ from LSTM.math.vectorise_EDM import vectorised_EDM
 import glob
 import numpy as np
 
-def multi_animal_EDM(x, num_animals, batchsize = 32768):
+def multi_animal_EDM(x, num_animals: int,  batchsize: int = 32768):
     """
     DESCRIPTION: 
     For a stacked array of deeplabcut coordinates which consists of 
@@ -73,7 +73,15 @@ def format_coords(dataset,multi=False):
 def check_validity(subject, cams, inference=False):
     """
     DESCRIPTION:
-    Ensure 
+    Ensure an animal folder is correctly formatted.
+
+    PARAMETERS:
+    subject (str): a path to the animals folder
+    cams (int): the number of cameras to expect in the folder
+    inference (bool): whether or not the dataset is in the training set or whether we are performing inference on it
+
+    RETURNS:
+    valid_status (bool): True if the folder is correctly formatted, False otherwise.
     """
     check_cams = len(glob.glob(subject+"/*.h5"))
     correct_cam_number = check_cams==cams
@@ -100,3 +108,37 @@ def check_validity(subject, cams, inference=False):
     else:
         return True
     
+
+ def balance_classes(data, Nothing_weight):
+    """
+    DESCRIPTION: 
+    Takes a set of classes and makes sure 'Nothing' doesn't outweigh everything else.
+
+    PARAMETERS: 
+    data (dataframe): a pandas dataframe of the behaviour at each frame of each video.
+    Nothing_weight (int): How much greater should Nothing be than the most frequent non-nothing behaviour. 
+
+    RETURNS:
+    balanced_classes (list): a list of indexes for your balanced classes
+    """
+    sizes = []
+    indexes = []
+    for behaviour in data['behaviour'].unique():
+        if behaviour != 'Nothing':
+            sizes.append(np.sum(data["behaviour"] == behaviour))
+        indexes.append(np.where(data["behaviour"] == behaviour)[0])
+        
+    balanced_classes = []
+    j = 0
+    print("Sizes: {}".format(sizes))
+    for index in indexes:
+        if data['behaviour'].unique()[j] == 'Nothing':
+            balanced_classes.append(np.random.choice(index, size=int(np.max(sizes)*Nothing_weight), replace=False))
+
+        else:
+                balanced_classes.append(index)
+
+        j += 1
+    balanced_classes.append(indexes[-1])
+    balanced_classes = [item for sublist in balanced_classes for item in sublist]
+    return balanced_classes

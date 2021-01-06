@@ -598,7 +598,7 @@ if __name__ == "__main__":
     # stuff only to run when not called via 'import' here
     # Create a window and pass it to the Application object
     win = tkinter.Tk()
-    win.iconbitmap(r'C:\Users\harry\SCAR\MORLOG\icons/scar_logo.ico')
+    win.iconbitmap(r'icons/scar_logo.ico')
     App(win, "SCAR")
 
 ##multithreadingexperiment

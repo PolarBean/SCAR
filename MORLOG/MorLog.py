@@ -434,8 +434,8 @@ class App:
         self.frame_count-=frames
         if self.frame_count<0:
                self.frame_count=0
-        self.check_lstm()
-
+        self.canvas.delete("text_obj")
+        self.canvas.delete("outline")
         self.vid.vid_progress.skip_to_frame(self.frame_count-1)
         self.vid.vid_progress.next()
         self.vid.vid.set(cv2.CAP_PROP_POS_FRAMES,self.frame_count-1)
@@ -457,7 +457,8 @@ class App:
      def fast_fwd(self, frames):
         frames = int(frames)
         self.frame_count+=frames
-        self.check_lstm()
+        self.canvas.delete("text_obj")
+        self.canvas.delete("outline")
         self.vid.vid.set(cv2.CAP_PROP_POS_FRAMES,self.frame_count-1)
         self.vid.vid_progress.skip_to_frame(self.frame_count-1)
         self.vid.vid_progress.next()

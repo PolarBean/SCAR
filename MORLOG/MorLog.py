@@ -118,21 +118,25 @@ class App:
          self.fastfwdbuttmin=ttk.Button(button_frame, compound=tkinter.LEFT,image = fwd_icon,text="1m", width=8, command=lambda: self.fast_fwd(60 * self.FPS))
          self.frame_rate_lower=ttk.Button(button_frame, compound=tkinter.LEFT,text="FR lower", width=8, command=lambda: self.framerate(-1))
          self.frame_rate_higher=ttk.Button(button_frame, compound=tkinter.LEFT,text="FR higher", width=10, command=lambda: self.framerate(1))
-
+         self.video_num_select = IntVar(window)
+         self.video_num_select.set(1)
+         self.video_num = OptionMenu(button_frame, self.video_num_select, 1, 2, 3, 4)
+         self.video_num.config(width=8)
+         self.video_num.grid(column=0, row=4)
          ###Place them on a grid
-         self.add_behave.grid(column=0,row=4, rowspan=1, sticky=W)
-         self.OpenVidButton.grid(column=1,row=4, rowspan=1, sticky=W)
-         self.SlowDownButt.grid(column=2,row=4, rowspan=1, sticky=W)
-         self.playbutt.grid(column=3,row=4, rowspan=1,  sticky=W)
-         self.pausebutt.grid(column=4,row=4,  rowspan=1, sticky=W)
-         self.FasterButt.grid(column=5,row=4,  rowspan=1, sticky=W)
-         self.Save_Butt.grid(column=6,row=4, rowspan=1,  sticky=W)
-         self.rewindbuttmin.grid(column=7,row=4,  rowspan=1, sticky=W)
-         self.rewindbutt.grid(column=8,row=4, rowspan=1,  sticky=W)
-         self.fastfwdbutt.grid(column=9,row=4,  rowspan=1, sticky=W)
-         self.fastfwdbuttmin.grid(column=10,row=4,  rowspan=1, sticky=W)
-         self.frame_rate_lower.grid(column=11,row=4,  rowspan=1, sticky=W)
-         self.frame_rate_higher.grid(column=12,row=4, rowspan=1,  sticky=W)
+         self.add_behave.grid(column=1,row=4, rowspan=1, sticky=W)
+         self.OpenVidButton.grid(column=2,row=4, rowspan=1, sticky=W)
+         self.SlowDownButt.grid(column=3,row=4, rowspan=1, sticky=W)
+         self.playbutt.grid(column=4,row=4, rowspan=1,  sticky=W)
+         self.pausebutt.grid(column=5,row=4,  rowspan=1, sticky=W)
+         self.FasterButt.grid(column=6,row=4,  rowspan=1, sticky=W)
+         self.Save_Butt.grid(column=7,row=4, rowspan=1,  sticky=W)
+         self.rewindbuttmin.grid(column=8,row=4,  rowspan=1, sticky=W)
+         self.rewindbutt.grid(column=9,row=4, rowspan=1,  sticky=W)
+         self.fastfwdbutt.grid(column=10,row=4,  rowspan=1, sticky=W)
+         self.fastfwdbuttmin.grid(column=11,row=4,  rowspan=1, sticky=W)
+         self.frame_rate_lower.grid(column=12,row=4,  rowspan=1, sticky=W)
+         self.frame_rate_higher.grid(column=13,row=4, rowspan=1,  sticky=W)
          # After it is called once, the update method will be automatically called every delay milliseconds
          #self.bold_font = Font(family="UbuntuMono Nerd Font")        
          self.window.mainloop()
@@ -204,8 +208,21 @@ class App:
                 cont=tkinter.messagebox.askokcancel(title="You haven't saved!!!", message="Continue without saving?")
             if cont==True:
                 try:
+                    self.num_videos_open = self.video_num_select.get()
+                    
                     self.video_source=tkinter.filedialog.askopenfilename()
                     self.vid = MyVideoCapture(self.video_source)
+                    if self.num_videos_open>1:
+                        video_source=tkinter.filedialog.askopenfilename()
+                        self.vid2 = MyVideoCapture(video_source)  
+                    # ##currently not properly implemented
+                    # if self.num_videos_open>2:
+                    #     video_source=tkinter.filedialog.askopenfilename()
+                    #     self.vid3 = MyVideoCapture(video_source)  
+                    # if self.num_videos_open>3:
+                    #     video_source=tkinter.filedialog.askopenfilename()
+                    #     self.vid4 = MyVideoCapture(video_source)  
+
                     self.FPS=self.vid.FPS
                     self.pausevid()
                     self.save_status=False
@@ -219,7 +236,7 @@ class App:
                     self.counts = dict({"behaviour": [], "value": [], "frequency": []})
                     ##inter-frame interval in milliseconds
                     # self.delay = int(1000 / self.FPS)
-                    self.curframe=self.canvas.create_image((1280-(self.vid.width))/2, 720-self.vid.height, anchor = tkinter.NW)
+                    self.curframe=self.canvas.create_image((1280-(self.vid.width*self.num_videos_open))/2, 720-self.vid.height, anchor = tkinter.NW)
                     progress_stat = self.vid.vid_progress.next()
                     self.behaviour_view.delete('0.0 ', "30.0")
 
@@ -417,8 +434,10 @@ class App:
         self.vid.vid_progress.skip_to_frame(self.frame_count-1)
         self.vid.vid_progress.next()
         self.vid.vid.set(cv2.CAP_PROP_POS_FRAMES,self.frame_count-1)
-
-
+        if self.num_videos_open>1:
+            self.vid2.vid_progress.skip_to_frame(self.frame_count-1)
+            self.vid2.vid_progress.next()
+            self.vid2.vid.set(cv2.CAP_PROP_POS_FRAMES,self.frame_count-1)
 
      def rewind_space(self, key):
         self.rewind_space_var = True
@@ -437,6 +456,10 @@ class App:
         self.vid.vid.set(cv2.CAP_PROP_POS_FRAMES,self.frame_count-1)
         self.vid.vid_progress.skip_to_frame(self.frame_count-1)
         self.vid.vid_progress.next()
+        if self.num_videos_open>1:
+            self.vid2.vid.set(cv2.CAP_PROP_POS_FRAMES,self.frame_count-1)
+            self.vid2.vid_progress.skip_to_frame(self.frame_count-1)
+            self.vid2.vid_progress.next()
     #  def check_presses(self):              
     #             self.dict["behaviour"].append(self.current_behaviour)     
                 
@@ -474,6 +497,9 @@ class App:
                 for i in range(self.frame_cap):
 
                     ret, frame = self.vid.get_frame()
+                    if self.num_videos_open>1:
+                        ret2, frame2 = self.vid2.get_frame()
+                        frame = np.concatenate((frame, frame2), axis=1)
                     if ret:
                         if self.lstm_is_open:
                             self.check_lstm()
@@ -579,6 +605,7 @@ class MyVideoCapture:
          if self.vid.isOpened():
   
              ret, frame = self.vid.read()
+             frame=frame
              if ret:
                  # Return a boolean success flag and the current frame converted to BGR
 

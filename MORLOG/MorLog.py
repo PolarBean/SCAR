@@ -345,7 +345,7 @@ class App:
 
      def release(self,t):     
                 # if len(self.dict["frame"])>0:
-                self.dict["time"][-1] = self.frame_count-self.dict["frame"][-1]
+                self.dict["time"][-1] = self.frame_count-self.dict["frame"][-2]
                 # else:
 
 
@@ -405,8 +405,11 @@ class App:
         full_behaviours=[]
         for behaviour, frame in zip(self.dict["behaviour"], self.dict["time"]):
             full_behaviours.extend([behaviour]*frame)
-        
-        df = pd.DataFrame({'frame':frames, 'behaviour':full_behaviours})
+        print(len(frames))
+        print(len(full_behaviours))
+
+        df = pd.DataFrame({'frame':frames})
+        df['behaviour']=full_behaviours
         df["hits"] = (df["behaviour"].shift(1, fill_value=df["behaviour"].head(1)) != df["behaviour"]) 
         df["hits"]=df["hits"]*df["behaviour"]
         df["values"] = pd.Series(list(self.counts["value"]))

@@ -390,8 +390,18 @@ class App:
         if time<0:
             time=0
 
-
+        
         indexes = [i<=time for i in self.dict['frame']]
+        ##if the final index when you rewind is not nothing you rewinded halfway through a behaviour
+        ##so here we shorten that behaviour rather than delete it
+
+        final_index = np.sum(indexes)
+        if len(self.dict['behaviour'])>final_index:
+            if self.dict['behaviour'][final_index]!='Nothing':
+                indexes[final_index] = True
+                self.dict['time'][final_index] = time-self.dict["frame"][final_index-1]
+                self.dict['frame'][final_index] = time
+
         for key in self.dict:
             self.dict[key]=[i for i,j in zip(self.dict[key], indexes) if j]
         self.counts = self.count_behaviours()
@@ -428,24 +438,25 @@ class App:
         self.save_status=True
 
      def rewind(self, frames):
-            # self.catchup()
-        # self.counts=(Counter([i for i in self.dict["behaviour"] if i !="Nothing"]))
-        frames = int(frames)
+        if not self.held_down:
+                # self.catchup()
+            # self.counts=(Counter([i for i in self.dict["behaviour"] if i !="Nothing"]))
+            frames = int(frames)
 
-        self.rewind_dict(frames)
+            self.rewind_dict(frames)
 
-        self.frame_count-=frames
-        if self.frame_count<0:
-               self.frame_count=0
-        self.canvas.delete("text_obj")
-        self.canvas.delete("outline")
-        self.vid.vid_progress.skip_to_frame(self.frame_count-1)
-        self.vid.vid_progress.next()
-        self.vid.vid.set(cv2.CAP_PROP_POS_FRAMES,self.frame_count-1)
-        if self.num_videos_open>1:
-            self.vid2.vid_progress.skip_to_frame(self.frame_count-1)
-            self.vid2.vid_progress.next()
-            self.vid2.vid.set(cv2.CAP_PROP_POS_FRAMES,self.frame_count-1)
+            self.frame_count-=frames
+            if self.frame_count<0:
+                self.frame_count=0
+            self.canvas.delete("text_obj")
+            self.canvas.delete("outline")
+            self.vid.vid_progress.skip_to_frame(self.frame_count-1)
+            self.vid.vid_progress.next()
+            self.vid.vid.set(cv2.CAP_PROP_POS_FRAMES,self.frame_count-1)
+            if self.num_videos_open>1:
+                self.vid2.vid_progress.skip_to_frame(self.frame_count-1)
+                self.vid2.vid_progress.next()
+                self.vid2.vid.set(cv2.CAP_PROP_POS_FRAMES,self.frame_count-1)
 
      def rewind_space(self, key):
         self.rewind_space_var = True
@@ -458,17 +469,19 @@ class App:
 
 
      def fast_fwd(self, frames):
-        frames = int(frames)
-        self.frame_count+=frames
-        self.canvas.delete("text_obj")
-        self.canvas.delete("outline")
-        self.vid.vid.set(cv2.CAP_PROP_POS_FRAMES,self.frame_count-1)
-        self.vid.vid_progress.skip_to_frame(self.frame_count-1)
-        self.vid.vid_progress.next()
-        if self.num_videos_open>1:
-            self.vid2.vid.set(cv2.CAP_PROP_POS_FRAMES,self.frame_count-1)
-            self.vid2.vid_progress.skip_to_frame(self.frame_count-1)
-            self.vid2.vid_progress.next()
+        if not self.held_down:
+        
+            frames = int(frames)
+            self.frame_count+=frames
+            self.canvas.delete("text_obj")
+            self.canvas.delete("outline")
+            self.vid.vid.set(cv2.CAP_PROP_POS_FRAMES,self.frame_count-1)
+            self.vid.vid_progress.skip_to_frame(self.frame_count-1)
+            self.vid.vid_progress.next()
+            if self.num_videos_open>1:
+                self.vid2.vid.set(cv2.CAP_PROP_POS_FRAMES,self.frame_count-1)
+                self.vid2.vid_progress.skip_to_frame(self.frame_count-1)
+                self.vid2.vid_progress.next()
     #  def check_presses(self):              
     #             self.dict["behaviour"].append(self.current_behaviour)     
                 

@@ -19,6 +19,14 @@ from tkinter import *
 from numpy.lib.stride_tricks import as_strided
 from progress.bar import IncrementalBar as ChargingBar
 
+def bin_file(df, bin_len):
+    bins = []
+    for i in range(int(len(df)/bin_len)):
+        if "Jump" in df[i*bin_len:(i+1)*bin_len]["hits"].value_counts():
+            bins.append(df[i*bin_len:(i+1)*bin_len]["hits"].value_counts()['Jump'])
+        else:
+            bins.append(0)
+    return bins
 class App:
      def __init__(self, window, window_title, video_source=None):
          ##save which behaviour and which keys correspond
@@ -423,9 +431,11 @@ class App:
         df['behaviour']=full_behaviours
         df["hits"] = (df["behaviour"].shift(1, fill_value=df["behaviour"].head(1)) != df["behaviour"]) 
         df["hits"]=df["hits"]*df["behaviour"]
-        df["values"] = pd.Series(list(self.counts["value"]))
+        df["values"] = pd.Series(list(df.behaviour.unique()[df.behaviour.unique()!='Nothing']))
+        df["duration"] = pd.Series(list(np.array(self.counts["value"])/self.FPS))
         df["freq"] = pd.Series(list(self.counts["frequency"]))
         return df
+    
 
 
      def Save_DataFrame(self):                  

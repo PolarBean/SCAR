@@ -195,11 +195,12 @@ class App:
          self.canvas.tag_raise(text, outline)
 
      def check_lstm(self):
-         current_behaviour = self.lstm_file[self.frame_count]
-         if not pd.isnull(current_behaviour) and current_behaviour!='Nothing':
-             self.draw_behaviour(current_behaviour)
-         if current_behaviour=='Nothing':
-            self.canvas.delete("text_obj")
+         if len(self.lstm_file)>self.frame_count:
+            current_behaviour = self.lstm_file[self.frame_count]
+            if not pd.isnull(current_behaviour) and current_behaviour!='Nothing':
+                self.draw_behaviour(current_behaviour)
+            if current_behaviour=='Nothing':
+                self.canvas.delete("text_obj")
             self.canvas.delete("outline")
 
     

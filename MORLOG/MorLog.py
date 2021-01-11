@@ -483,7 +483,10 @@ class App:
         if not self.held_down:
         
             frames = int(frames)
-            self.frame_count+=frames
+            if self.frame_count+frames<self.vid.total_frames:
+                self.frame_count+=frames
+            else:
+                self.frame_count = self.vid.total_frames
             self.canvas.delete("text_obj")
             self.canvas.delete("outline")
             self.vid.vid.set(cv2.CAP_PROP_POS_FRAMES,self.frame_count-1)
@@ -628,8 +631,8 @@ class MyVideoCapture:
              raise ValueError("Unable to open video source", video_source)
         # self.vid.set(cv2.CAP_PROP_POS_FRAMES,self.start)
          # Get video source width and height
-         total_frames = self.vid.get(cv2.CAP_PROP_FRAME_COUNT)
-         self.vid_progress = ChargingBar('Frames  ', max=int(total_frames))
+         self.total_frames = self.vid.get(cv2.CAP_PROP_FRAME_COUNT)
+         self.vid_progress = ChargingBar('Frames  ', max=int(self.total_frames))
          self.FPS   = self.vid.get(cv2.CAP_PROP_FPS)
          self.width = self.vid.get(cv2.CAP_PROP_FRAME_WIDTH)
          self.height = self.vid.get(cv2.CAP_PROP_FRAME_HEIGHT)

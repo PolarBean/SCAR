@@ -483,10 +483,10 @@ class App:
         if not self.held_down:
         
             frames = int(frames)
-            if self.frame_count+frames<self.vid.total_frames:
+            if self.frame_count+frames<self.total_frames:
                 self.frame_count+=frames
             else:
-                self.frame_count = self.vid.total_frames-1
+                self.frame_count = self.total_frames-1
                 self.frame_count = int(self.frame_count)
             self.canvas.delete("text_obj")
             self.canvas.delete("outline")
@@ -534,9 +534,10 @@ class App:
                 for i in range(self.frame_cap):
 
                     ret, frame = self.vid.get_frame()
+                    self.total_frames = self.vid.total_frames
                     if self.num_videos_open>1:
                         ret2, frame2 = self.vid2.get_frame()
-                        frame = np.concatenate((frame, frame2), axis=1)
+                        self.total_frames = min((self.vid.total_frames, self.vid2.total_frames))
                     if ret:
                         if self.lstm_is_open:
                             self.check_lstm()
@@ -550,6 +551,8 @@ class App:
                         progress_stat = self.vid.vid_progress.next()
                         self.behaviour_view.delete('0.0 ', "2.0")
                         self.behaviour_view.insert('0.0',(progress_stat))
+                        # if self.frame_count==self.total_frames:
+                        #     self.pausevid()
                     if self.frame_count%10==0:
                         now = time.time() * 1000
                         looptime = now - self.previous_time
@@ -602,6 +605,9 @@ class App:
                         # frame = frame.repeat(3, axis=0).repeat(3, axis=1)
 
                         # frame = np.kron(frame, np.ones((2, 2), dtype = frame.dtype)).astype(frame.dtype)
+                        if self.num_videos_open>1:
+                            frame = np.concatenate((frame, frame2), axis=1)
+
                         frame = PIL.Image.fromarray(frame)
 
                         self.photo = PIL.ImageTk.PhotoImage(image = frame)

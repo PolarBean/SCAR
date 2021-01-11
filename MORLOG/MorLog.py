@@ -486,7 +486,8 @@ class App:
             if self.frame_count+frames<self.vid.total_frames:
                 self.frame_count+=frames
             else:
-                self.frame_count = self.vid.total_frames
+                self.frame_count = self.vid.total_frames-1
+                self.frame_count = int(self.frame_count)
             self.canvas.delete("text_obj")
             self.canvas.delete("outline")
             self.vid.vid.set(cv2.CAP_PROP_POS_FRAMES,self.frame_count-1)

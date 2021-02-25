@@ -197,6 +197,9 @@ class App:
          
 
      def draw_behaviour(self, behaviour):
+         if not self.first_behave:
+            self.canvas.delete("text_obj")
+         self.first_behave = False
          text = self.canvas.create_text(100, 50, fill='white',tag='text_obj', font='Hershey 20 bold', text=behaviour.upper())
          bbox = self.canvas.bbox(text)
          outline = self.canvas.create_rectangle(bbox, outline='red',tag='outline', fill='black')

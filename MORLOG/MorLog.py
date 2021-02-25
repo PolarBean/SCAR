@@ -36,6 +36,7 @@ class App:
          self.keys = []
          self.fps_measure=[]
          self.play=False
+         self.first_behave = True
          self.held_down=False
          self.time_spent = [0]
          self.skip_forward = False

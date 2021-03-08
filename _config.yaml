@@ -1,0 +1,7 @@
+animal_interactions: false
+camera_name_format: ''
+multi_animal_project: false
+number_of_animals: 1
+number_of_cameras: 1
+project_name: ''
+tracking_method: box

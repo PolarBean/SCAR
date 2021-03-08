@@ -8,7 +8,7 @@ def open_folder_predict(root_folder, cams, dlc_epoch, lookback = 180, cutoff = 0
         data = open_file(subject, cams, root_folder, dlc_epoch)
         predictions = predict(data, model, lookback = lookback, batchsize = 2048, cutoff = cutoff)
         predictions.to_csv("{}/{}__{}_cutoff_lstm_preds.csv".format(\
-            folder, subjects, cutoff))
+            root_folder, subject, cutoff))
 
 
 def predict(data, model, lookback, batchsize = 2048, cutoff = 0.5):

@@ -167,7 +167,7 @@ class App:
          self.lstm_is_open = True
 
 
-     def skip_to_behaviou(self, direction):
+     def skip_to_behaviour(self, direction):
          behaviour= self.drop_down_select.get()
          if behaviour=='all':
             behaviour = [i for i in filter(lambda v: v==v, self.lstm_file.unique()) if i!='Nothing']

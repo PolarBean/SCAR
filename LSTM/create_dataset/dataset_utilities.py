@@ -1,4 +1,4 @@
-from LSTM.math.vectorise_EDM import vectorised_EDM
+from .math.vectorise_EDM import vectorised_EDM
 import glob
 import numpy as np
 
@@ -70,7 +70,7 @@ def format_coords(dataset,multi=False):
     return dataset, animals
 
 
-def check_validity(subject, cams, inference=False):
+def check_validity(subject, cams, inference=False, dlc_epoch = ''):
     """
     DESCRIPTION:
     Ensure an animal folder is correctly formatted.
@@ -83,7 +83,7 @@ def check_validity(subject, cams, inference=False):
     RETURNS:
     valid_status (bool): True if the folder is correctly formatted, False otherwise.
     """
-    check_cams = len(glob.glob(subject+"/*.h5"))
+    check_cams = len(glob.glob(subject+"/*{}.h5".format(dlc_epoch)))
     correct_cam_number = check_cams==cams
     
         
@@ -109,7 +109,7 @@ def check_validity(subject, cams, inference=False):
         return True
     
 
- def balance_classes(data, Nothing_weight):
+def balance_classes(data, Nothing_weight):
     """
     DESCRIPTION: 
     Takes a set of classes and makes sure 'Nothing' doesn't outweigh everything else.
@@ -142,3 +142,19 @@ def check_validity(subject, cams, inference=False):
     balanced_classes.append(indexes[-1])
     balanced_classes = [item for sublist in balanced_classes for item in sublist]
     return balanced_classes
+
+def preprocess_Coords(dataset,multi=False, drop = []):
+        if multi:
+            dataset, animals = format_multi(dataset)
+        else:
+            scorer = dataset.columns[0][0]
+            dataset = dataset[scorer]
+            for i in drop:
+                dataset = dataset.drop(i, axis=1)
+            ####add likelihood mask
+            dataset.columns = dataset.columns.droplevel()
+            dataset = dataset.drop('likelihood', axis=1)
+            dataset = np.array(dataset).reshape((dataset.shape[0], int(dataset.shape[1] / 2), 2))  
+            animals = 1
+        return dataset, animals
+
